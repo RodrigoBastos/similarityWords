@@ -4,6 +4,12 @@ from textblob import TextBlob as tb
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
+
+#STOPWORDS
+stopwords = stopwords.words('portuguese')
+stopwords.append('pra')
+
+
 def remove_stopwords (sentences):
     phrases = []
     for sentence in sentences:
@@ -41,58 +47,77 @@ def idf(word, bloblist):
 def tfidf(word, blob, bloblist):
     return tf(word, blob) * idf(word, bloblist)
 
-#Get StopWords
-stopwords = stopwords.words('portuguese')
-stopwords.append('pra')
+def get_bloblist(sentences):
+    bloblist = []
+    for phrase in sentences:
+        bloblist.append(tb(phrase))
 
-#Lendo arquivo com sentenças
-file = open('dataset/sentences.txt')
-sentences = file.readlines()
-sentences = filter(None, sentences)
+    return bloblist
 
-#Removendo stopwords
-sentences = remove_stopwords(sentences)
+def get_words(bloblist):
+    allWords = []
+    #Todas as palavras
+    for blob in bloblist:
+        for word in blob.words:
+            if word not in allWords:
+                allWords.append(word)
+    return allWords
 
-#Inicializando Bloblist
-bloblist = []
-for phrase in sentences:
-    bloblist.append(tb(phrase))
+def get_scores (bloblist):
+    #Gerando TFIDF das palavras
+    table = []
+    for i, blob in enumerate(bloblist):
+        scores = {word: tfidf(word, blob, bloblist) for word in blob.words}
+        sorted_words = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        table.append(scores)
+    return table
 
+def get_vectors (words, table):
+    #Gerando vetores das Palavras por Documento
+    wordsPerDocument = {}
+    for word in words:
 
-table = []
-allWords = []
-wordsPerDocument = {}
+        for document in table:
+            #Pegar a pontuação de cada palavra no Documento, caso a p
+            score = document[word] if document.__contains__(word) else 0
 
-#Gerando TFIDF das palavras
-for i, blob in enumerate(bloblist):
-    scores = {word: tfidf(word, blob, bloblist) for word in blob.words}
-    sorted_words = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    table.append(scores)
+            if wordsPerDocument.__contains__(word):
+                wordsPerDocument[word].append(score)
+            else:
+                wordsPerDocument[word] = [score]
 
-#Todas as palavras
-for blob in bloblist:
-    for word in blob.words:
-        if word not in allWords:
-            allWords.append(word)
+    return wordsPerDocument
 
-#Gerando vetores das Palavras por Documento
-for word in allWords:
+def get_similarity_words (wordsPerDocument):
+    #Calculando a similaridade das palavras com 'apple' através do cosseno
+    response = []
+    appleVector = wordsPerDocument.pop('apple')
+    for nameWord in wordsPerDocument:
+        value = get_cosine(appleVector, wordsPerDocument[nameWord])
+        if value > 0.5:
+            response.append({'word': nameWord,'value': value})
 
-    for document in table:
-        #Pegar a pontuação de cada palavra no Documento, caso a p
-        score = document[word] if document.__contains__(word) else 0
+    return response
 
-        if wordsPerDocument.__contains__(word):
-            wordsPerDocument[word].append(score)
-        else:
-            wordsPerDocument[word] = [score]
+def main ():
 
-#Calculando a similaridade das palavras com 'apple' através do cosseno
-appleVector = wordsPerDocument.pop('apple')
-for nameWord in wordsPerDocument:
+    #Lendo arquivo com sentenças
+    file = open('dataset/sentences.txt')
+    sentences = file.readlines()
+    sentences = filter(None, sentences)
 
-    cos = get_cosine(appleVector, wordsPerDocument[nameWord])
-    if cos > 0.5:
-        print (nameWord, cos)
+    #Removendo stopwords (para remover retire o comentário da linha abaixo)
+    #sentences = remove_stopwords(sentences)
 
+    #Inicializando Bloblist
+    bloblist = get_bloblist(sentences)
+    allWords = get_words(bloblist)
+    table = get_scores(bloblist)
+    wordsPerDocument = get_vectors(allWords, table)
 
+    response = get_similarity_words(wordsPerDocument)
+
+    for item in response:
+        print (item['word'], item['value'])
+
+main()
